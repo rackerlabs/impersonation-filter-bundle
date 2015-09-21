@@ -1,0 +1,2 @@
+include 'impersonation-filter',
+        'impersonation-filter-bundle-impersonation-filter-bundle'
