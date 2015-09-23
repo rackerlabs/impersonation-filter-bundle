@@ -2,6 +2,8 @@ Repose Impersonation filter
 =================
 
 [![Build Status](https://travis-ci.org/rackerlabs/impersonation-filter-bundle.svg)](https://travis-ci.org/rackerlabs/impersonation-filter-bundle)
+[![codecov.io](http://codecov.io/github/rackerlabs/impersonation-filter-bundle/coverage.svg?branch=impersonate)](http://codecov.io/github/rackerlabs/impersonation-filter-bundle?branch=impersonate)
+
 
 This repo hosts Impersonation filter that can be used to take a user's token, impersonate it and forward an impersonated token to the origin service.
 
