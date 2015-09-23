@@ -16,7 +16,7 @@ import org.openrepose.core.filter.logic.common.AbstractFilterLogicHandler
 import org.openrepose.core.filter.logic.impl.FilterDirectorImpl
 import org.openrepose.filters.config.RackspaceImpersonation
 import org.openrepose.core.services.serviceclient.akka.AkkaServiceClient
-import org.openrepose.filters.impersonation.ImpersonationHandler.{IdentityResponseProcessingException, OverLimitException, IdentityCommunicationException}
+import org.openrepose.filters.impersonation.ImpersonationHandler._
 
 import play.api.libs.json._
 
@@ -108,8 +108,12 @@ class ImpersonationHandler(
               case oops@(_: JsResultException | _: JsonProcessingException) =>
                 Failure(IdentityCommunicationException("Unable to parse JSON from identity validate token response", oops))
             }
+          case HttpServletResponse.SC_NOT_FOUND =>
+            Failure(UserNotFoundException(s"Unable to find $userName in Identity."))
           case HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE | ImpersonationHandler.SC_TOO_MANY_REQUESTS =>
-            Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting admin token"))
+            Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting impersonation token"))
+          case HttpServletResponse.SC_UNAUTHORIZED =>
+            Failure(AdminTokenUnauthorizedException("Unable to authenticate your admin user"))
           case statusCode if statusCode >= 500 =>
             Failure(IdentityCommunicationException("Identity Service not available to get admin token"))
           case _ => Failure(IdentityResponseProcessingException("Unable to successfully get admin token from Identity"))
@@ -133,12 +137,16 @@ object ImpersonationHandler {
   }
 
   def buildRetryValue(response: ServiceClientResponse) = {
-    response.getHeaders.find(header => HttpHeaders.RETRY_AFTER.equalsIgnoreCase(header.getName)) match {
-      case Some(retryValue) => retryValue.getValue
-      case _ =>
-        val retryCalendar: Calendar = new GregorianCalendar
-        retryCalendar.add(Calendar.SECOND, 5)
-        DateUtils.formatDate(retryCalendar.getTime)
+    if(response.getHeaders != null){
+      response.getHeaders.find(header => HttpHeaders.RETRY_AFTER.equalsIgnoreCase(header.getName)) match {
+        case Some(retryValue) => retryValue.getValue
+        case _ =>
+          val retryCalendar: Calendar = new GregorianCalendar
+          retryCalendar.add(Calendar.SECOND, 5)
+          DateUtils.formatDate(retryCalendar.getTime)
+      }
+    } else {
+      "Retry-after header not specified"
     }
   }
 
@@ -155,6 +163,8 @@ object ImpersonationHandler {
   case class IdentityCommunicationException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
 
   case class IdentityResponseProcessingException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
+
+  case class UserNotFoundException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
 
   case class OverLimitException(retryAfter: String, message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
 

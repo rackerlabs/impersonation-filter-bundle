@@ -128,6 +128,7 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
 
         processingResult match {
           case Success(_) => Pass
+          case Failure(e: UserNotFoundException) => Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
           case Failure(e: MissingAuthTokenException) => Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
           case Failure(e: IdentityCommunicationException) => Reject(HttpServletResponse.SC_BAD_GATEWAY, Some(e.getMessage))
           case Failure(e: OverLimitException) =>
