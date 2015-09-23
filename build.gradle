@@ -102,6 +102,8 @@ def filterBundleProject(String projectName, List<String> deps) {
 
 project(':impersonation-filter') {
     apply plugin: "com.github.jacobono.jaxb"
+    apply plugin: 'jacoco'
+
     repositories {
         mavenLocal()
         mavenCentral()
@@ -150,6 +152,15 @@ project(':impersonation-filter') {
     tasks.withType(ScalaCompile) {
         scalaCompileOptions.useAnt = false
     }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled = true
+            html.enabled = true
+        }
+    }
+
+    check.dependsOn jacocoTestReport
 }
 
 filterBundleProject(':impersonation-filter-bundle-impersonation-filter-bundle', [':impersonation-filter'])
