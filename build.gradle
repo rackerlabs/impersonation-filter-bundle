@@ -11,6 +11,7 @@ buildscript {
         classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
         classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7'
         classpath "com.github.jacobono:gradle-jaxb-plugin:1.3.5"
+
     }
 }
 
@@ -103,26 +104,23 @@ project(':impersonation-filter') {
         mavenLocal()
         mavenCentral()
         maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
+        maven { url "http://repo.typesafe.com/typesafe/maven-releases" }
+        maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
     }
     dependencies {
-        compile 'org.apache.commons:commons-lang3:3.3.2'
-        compile 'com.typesafe.scala-logging:scala-logging-slf4j_2.10:2.1.2'
+        //compile 'org.apache.commons:commons-lang3:3.3.2'
+        //compile 'com.typesafe.scala-logging:scala-logging-slf4j_2.10:2.1.2'
         compile 'org.openrepose:utilities:7.1.5.1'
         compile 'org.openrepose:core-lib:7.1.5.1'
         compile 'org.openrepose:http-delegation:4.0.0'
         testCompile 'org.scalatest:scalatest_2.10:2.2.5'
         testCompile 'org.mockito:mockito-all:1.9.5'
         testCompile 'junit:junit:4.12'
-        testCompile('com.mockrunner:mockrunner-servlet:1.0.0') //{
-        //    exclude group: 'xerces', module: 'xercesImpl'
-        //    exclude group: 'commons-logging', module: 'commons-logging'
-        //    exclude group: 'org.apache.tomcat', module: 'servlet-api'
-        //}
+        testCompile 'com.mockrunner:mockrunner-servlet:1.0.0'
         compile 'org.slf4j:slf4j-api:1.7.7'
 
         provided 'javax:javaee-web-api:6.0'
         provided 'javax:javaee-api:6.0'
-        //provided 'xerces:xerces-xsd11:2.12.0-rax'
         jaxb 'com.sun.xml.bind:jaxb-xjc:2.1.8'
         jaxb "org.jvnet.jaxb2_commons:jaxb2-basics-ant:0.6.5"
         jaxb "org.jvnet.jaxb2_commons:jaxb2-basics:0.6.4"
