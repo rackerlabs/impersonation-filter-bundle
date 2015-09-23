@@ -185,8 +185,15 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
     }
 
     def updateTokenHeader(impersonationToken: ImpersonationToken): Unit = {
-      request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
-      request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+      if(request.getHeader(CommonHttpHeader.AUTH_TOKEN.toString) != null)
+        request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
+      else
+        request.addHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
+
+      if(request.getHeader(OpenStackServiceHeader.X_EXPIRATION.toString) != null)
+        request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+      else
+        request.addHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
     }
 
 
@@ -223,7 +230,9 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
 
       //let's see if we have an impersonation token in cache
       Option(datastore.get(s"${ImpersonationHandler.IMPERSONATION_KEY_PREFIX}$userName").asInstanceOf[ImpersonationHandler.ImpersonationToken]) match {
-        case Some(cachedImpersonationToken) => Success(cachedImpersonationToken)
+        case Some(cachedImpersonationToken) =>
+          updateTokenHeader(cachedImpersonationToken)
+          Success(cachedImpersonationToken)
         case None =>
           //get some data here
           val impersonationTtl = config.getAuthenticationServer.getImpersonationTtl
@@ -241,16 +250,7 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
               timeToLive foreach { ttl =>
                 datastore.put(s"${ImpersonationHandler.IMPERSONATION_KEY_PREFIX}$userName", impersonationToken, ttl, TimeUnit.SECONDS)
               }
-              if(request.getHeader(CommonHttpHeader.AUTH_TOKEN.toString) != null)
-                request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
-              else
-                request.addHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
-
-              if(request.getHeader(OpenStackServiceHeader.X_EXPIRATION.toString) != null)
-                request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
-              else
-                request.addHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
-
+              updateTokenHeader(impersonationToken)
             }
           }
       }
