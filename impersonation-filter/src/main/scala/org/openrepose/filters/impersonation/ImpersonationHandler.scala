@@ -52,20 +52,24 @@ class ImpersonationHandler(
 
     akkaResponse match {
       case Success(serviceClientResponse) =>
-        serviceClientResponse.getStatus match {
-          case statusCode if statusCode >= 200 && statusCode < 300 =>
-            val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
-            val json = Json.parse(jsonResponse)
-            Try(Success((json \ "access" \ "token" \ "id").as[String])) match {
-              case Success(s) => s
-              case Failure(f) =>
-                Failure(IdentityCommunicationException("Token not found in identity response during admin authentication", f))
-            }
-          case HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE | ImpersonationHandler.SC_TOO_MANY_REQUESTS =>
-            Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting admin token"))
-          case statusCode if statusCode >= 500 =>
-            Failure(IdentityCommunicationException("Identity Service not available to get admin token"))
-          case _ => Failure(IdentityResponseProcessingException("Unable to successfully get admin token from Identity"))
+        if(serviceClientResponse != null) {
+          serviceClientResponse.getStatus match {
+            case statusCode if statusCode >= 200 && statusCode < 300 =>
+              val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
+              val json = Json.parse(jsonResponse)
+              Try(Success((json \ "access" \ "token" \ "id").as[String])) match {
+                case Success(s) => s
+                case Failure(f) =>
+                  Failure(IdentityCommunicationException("Token not found in identity response during admin authentication", f))
+              }
+            case HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE | ImpersonationHandler.SC_TOO_MANY_REQUESTS =>
+              Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting admin token"))
+            case statusCode if statusCode >= 500 =>
+              Failure(IdentityCommunicationException("Identity Service not available to get admin token"))
+            case _ => Failure(IdentityResponseProcessingException("Unable to successfully get admin token from Identity"))
+          }
+        } else {
+          Failure(IdentityResponseProcessingException("Unable to successfully get admin token from Identity"))
         }
       case Failure(x) => Failure(IdentityResponseProcessingException("Failure communicating with identity during admin authentication", x))
     }
@@ -94,31 +98,35 @@ class ImpersonationHandler(
 
     akkaResponse match {
       case Success(serviceClientResponse) =>
-        serviceClientResponse.getStatus match {
-          case statusCode if statusCode >= 200 && statusCode < 300 =>
-            val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
-            try{
-              val json = Json.parse(jsonResponse)
-              //Have to convert it to a vector, because List isn't serializeable in 2.10
-              val expirationDate = ImpersonationHandler.iso8601ToRfc1123((json \ "access" \ "token" \ "expires").as[String])
-              val token = (json \ "access" \ "token" \ "id").as[String]
-              val impersonationToken = ImpersonationHandler.ImpersonationToken(expirationDate, token)
-              Success(impersonationToken)
-            } catch {
-              case oops@(_: JsResultException | _: JsonProcessingException) =>
-                Failure(IdentityCommunicationException("Unable to parse JSON from identity validate token response", oops))
-            }
-          case HttpServletResponse.SC_NOT_FOUND =>
-            Failure(UserNotFoundException(s"Unable to find $userName in Identity."))
-          case HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE | ImpersonationHandler.SC_TOO_MANY_REQUESTS =>
-            Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting impersonation token"))
-          case HttpServletResponse.SC_UNAUTHORIZED =>
-            Failure(AdminTokenUnauthorizedException("Unable to authenticate your admin user"))
-          case statusCode if statusCode >= 500 =>
-            Failure(IdentityCommunicationException("Identity Service not available to get admin token"))
-          case _ => Failure(IdentityResponseProcessingException("Unable to successfully get admin token from Identity"))
+        if(serviceClientResponse != null) {
+          serviceClientResponse.getStatus match {
+            case statusCode if statusCode >= 200 && statusCode < 300 =>
+              val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
+              try {
+                val json = Json.parse(jsonResponse)
+                //Have to convert it to a vector, because List isn't serializeable in 2.10
+                val expirationDate = ImpersonationHandler.iso8601ToRfc1123((json \ "access" \ "token" \ "expires").as[String])
+                val token = (json \ "access" \ "token" \ "id").as[String]
+                val impersonationToken = ImpersonationHandler.ImpersonationToken(expirationDate, token)
+                Success(impersonationToken)
+              } catch {
+                case oops@(_: JsResultException | _: JsonProcessingException) =>
+                  Failure(IdentityCommunicationException("Unable to parse JSON from identity impersonate token response", oops))
+              }
+            case HttpServletResponse.SC_NOT_FOUND =>
+              Failure(UserNotFoundException(s"Unable to find $userName in Identity."))
+            case HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE | ImpersonationHandler.SC_TOO_MANY_REQUESTS =>
+              Failure(OverLimitException(ImpersonationHandler.buildRetryValue(serviceClientResponse), "Rate limited when getting impersonation token"))
+            case HttpServletResponse.SC_UNAUTHORIZED =>
+              Failure(AdminTokenUnauthorizedException("Unable to authenticate your admin user"))
+            case statusCode if statusCode >= 500 =>
+              Failure(IdentityCommunicationException("Identity Service not available to get impersonation token"))
+            case _ => Failure(IdentityResponseProcessingException("Unable to successfully get impersonation token from Identity"))
+          }
+        } else {
+          Failure(IdentityResponseProcessingException("Unable to successfully get impersonation token from Identity"))
         }
-      case Failure(x) => Failure(IdentityResponseProcessingException("Failure communicating with identity during admin authentication", x))
+      case Failure(x) => Failure(IdentityResponseProcessingException("Failure communicating with identity during impersonation token retrieval", x))
     }
   }
 }
