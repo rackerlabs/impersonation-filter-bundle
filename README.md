@@ -1,6 +1,8 @@
 Repose Impersonation filter
 =================
 
+https://travis-ci.org/rackerlabs/impersonation-filter-bundle.svg
+
 This repo hosts Impersonation filter that can be used to take a user's token, impersonate it and forward an impersonated token to the origin service.
 
 Steps
