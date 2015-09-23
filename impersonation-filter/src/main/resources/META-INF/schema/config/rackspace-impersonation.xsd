@@ -108,7 +108,7 @@
         <xs:annotation>
             <xs:documentation>
                 <html:p>
-                    If present, the Rackspace Impersonation filter will not send a failing response when an invalid state
+                    If present, the Client Authorization filter will not send a failing response when an invalid state
                     is reached.
                     Instead, the filter will add the data relating to the failure to a header and forward the
                     request to be handled by a different filter or service.

@@ -31,15 +31,6 @@ class ImpersonationHandler(
                             traceId: Option[String])
   extends AbstractFilterLogicHandler with LazyLogging {
 
-  override def handleRequest(request: HttpServletRequest, response: ReadableHttpServletResponse): FilterDirector = {
-    val filterDirector = new FilterDirectorImpl()
-    val headerManager = filterDirector.requestHeaderManager()
-
-    //go get some data here
-
-    filterDirector
-  }
-
   final def getAdminToken(adminUsername: String, adminPassword: String): Try[String] = {
     //authenticate, or get the admin token
     val authenticationPayload = Json.obj(
@@ -81,14 +72,14 @@ class ImpersonationHandler(
   }
 
 
-  final def getImpersonationToken(userName: String, validatingToken: String): Try[ImpersonationHandler.ImpersonationToken] = {
+  final def getImpersonationToken(userName: String, expirationTtl: Int, validatingToken: String): Try[ImpersonationHandler.ImpersonationToken] = {
     //authenticate, or get the admin token
     val impersonationPayload = Json.obj(
       "RAX-AUTH:impersonation" -> Json.obj(
         "user" -> Json.obj(
           "username" -> userName
         ),
-        "expire-in-seconds" -> 3600
+        "expire-in-seconds" -> expirationTtl
       )
     )
 
@@ -151,8 +142,15 @@ object ImpersonationHandler {
     }
   }
 
+  trait IdentityException
+
+
   case class ImpersonationToken(expirationDate: String,
                         token: String)
+
+  case class AdminTokenUnauthorizedException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
+
+  case class IdentityAdminTokenException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
 
   case class IdentityCommunicationException(message: String, cause: Throwable = null) extends Exception(message, cause) with IdentityException
 

@@ -19,12 +19,13 @@
  */
 package org.openrepose.filters.impersonation
 
+import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Named}
 import javax.servlet._
 import javax.servlet.http.{HttpServletResponse, HttpServletRequest}
-import javax.ws.rs.core.HttpHeaders
+import org.apache.http.HttpHeaders
 import org.openrepose.commons.config.manager.UpdateListener
-import org.openrepose.commons.utils.http.CommonHttpHeader
+import org.openrepose.commons.utils.http.{OpenStackServiceHeader, CommonHttpHeader}
 import org.openrepose.commons.utils.servlet.http.MutableHttpServletRequest
 import org.openrepose.core.filter.FilterConfigHelper
 import org.openrepose.core.services.config.ConfigurationService
@@ -33,8 +34,8 @@ import org.openrepose.core.services.datastore.{DatastoreService, Datastore}
 import org.openrepose.core.services.serviceclient.akka.{AkkaServiceClientException, AkkaServiceClient}
 import org.openrepose.core.systemmodel.SystemModel
 import org.openrepose.filters.config.RackspaceImpersonation
-import org.openrepose.filters.impersonation.ImpersonationFilter.{Reject, Pass, MissingAuthTokenException}
-import org.openrepose.filters.impersonation.ImpersonationHandler.{IdentityResponseProcessingException, OverLimitException, IdentityCommunicationException}
+import org.openrepose.filters.impersonation.ImpersonationHandler._
+import org.apache.http.client.utils.DateUtils
 
 
 import scala.concurrent.TimeoutException
@@ -48,6 +49,8 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
   private final val DEFAULT_CONFIG = "rackspace-impersonation.cfg.xml"
   private final val SYSTEM_MODEL_CONFIG = "system-model.cfg.xml"
   private var sendTraceHeader = true
+
+  import ImpersonationFilter._
 
   private val datastore: Datastore = datastoreService.getDefaultDatastore
 
@@ -113,14 +116,14 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
        * We have an auth token and admin token.  Let's figure out whether impersonation token exists
        * 1. Validate impersonation token in cache
        * 2. Doesn't exist?
-       *  2a. Get admin token
-       *  2b. Get auth token
+       * 2a. Get admin token
+       * 2b. Get auth token
        */
 
       val filterResult = {
         val processingResult =
-          getAuthToken flatMap { authToken =>
-            getImpersonationToken(getAdminToken, authToken)
+          getUser flatMap { userName =>
+            getImpersonationToken(getAdminToken, userName)
           }
 
         processingResult match {
@@ -181,13 +184,18 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
       }
     }
 
+    def updateTokenHeader(impersonationToken: ImpersonationToken): Unit = {
+      request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
+      request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+    }
 
-    def getAuthToken: Try[String] = {
-      logger.trace("Getting the x-auth-token header value")
 
-      Option(request.getHeader(CommonHttpHeader.AUTH_TOKEN)) match {
-        case Some(token) => Success(token)
-        case None => Failure(MissingAuthTokenException("X-Auth-Token header not found"))
+    def getUser: Try[String] = {
+      logger.trace("Getting the x-user-name header value")
+
+      Option(request.getHeader(OpenStackServiceHeader.USER_NAME.toString)) match {
+        case Some(user) => Success(user)
+        case None => Failure(MissingAuthTokenException("X-User-Name header not found"))
       }
     }
 
@@ -210,41 +218,90 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
     }
 
 
-    def getImpersonationToken(getAdminToken: Boolean => Try[String], authToken: String): Try[ImpersonationHandler.ImpersonationToken] = {
-      logger.trace(s"Retrieve impersonation token for: $authToken")
+    def getImpersonationToken(getAdminToken: Boolean => Try[String], userName: String): Try[ImpersonationHandler.ImpersonationToken] = {
+      logger.trace(s"Retrieve impersonation token for: $userName")
 
       //let's see if we have an impersonation token in cache
-      Option(datastore.get(s"$ImpersonationHandler.IMPERSONATION_KEY_PREFIX$authToken").asInstanceOf[ImpersonationHandler.ImpersonationToken]) match {
+      Option(datastore.get(s"${ImpersonationHandler.IMPERSONATION_KEY_PREFIX}$userName").asInstanceOf[ImpersonationHandler.ImpersonationToken]) match {
         case Some(cachedImpersonationToken) => Success(cachedImpersonationToken)
         case None =>
           //get some data here
+          val impersonationTtl = config.getAuthenticationServer.getImpersonationTtl
           getAdminToken(false) flatMap { validatingToken =>
-            requestHandler.getImpersonationToken(validatingToken, authToken) recoverWith {
+            requestHandler.getImpersonationToken(userName, impersonationTtl, validatingToken) recoverWith {
               case _: AdminTokenUnauthorizedException =>
                 // Force acquiring of the admin token, and call the validation function again (retry once)
                 getAdminToken(true) match {
-                  case Success(newValidatingToken) => requestHandler.validateToken(newValidatingToken, authToken)
+                  case Success(newValidatingToken) => requestHandler.getImpersonationToken(userName, impersonationTtl, newValidatingToken)
                   case Failure(x) => Failure(IdentityAdminTokenException("Unable to reacquire admin token", x))
                 }
-            } cacheOnSuccess { validToken =>
-              val cacheSettings = config.getCache.getTimeouts
-              val timeToLive = getTtl(cacheSettings.getToken,
-                cacheSettings.getVariability,
-                Some(validToken))
+            } cacheOnSuccess { impersonationToken =>
+              val timeToLive = getTtl(config.getAuthenticationServer.getImpersonationTtl,
+                Some(impersonationToken))
               timeToLive foreach { ttl =>
-                datastore.put(s"$TOKEN_KEY_PREFIX$authToken", validToken, ttl, TimeUnit.SECONDS)
+                datastore.put(s"${ImpersonationHandler.IMPERSONATION_KEY_PREFIX}$userName", impersonationToken, ttl, TimeUnit.SECONDS)
               }
+              if(request.getHeader(CommonHttpHeader.AUTH_TOKEN.toString) != null)
+                request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
+              else
+                request.addHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
+
+              if(request.getHeader(OpenStackServiceHeader.X_EXPIRATION.toString) != null)
+                request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+              else
+                request.addHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+
             }
           }
-
-      }
-      map
-      } { validationResult =>
-        Success(validationResult)
-      } getOrElse {
-
       }
     }
+  }
+
+
+  def getTtl(baseTtl: Int, tokenOption: Option[ImpersonationToken] = None): Option[Int] = {
+    def safeLongToInt(l: Long): Int = math.min(l, Int.MaxValue).toInt
+
+    val tokenTtl = {
+      tokenOption match {
+        case Some(token) =>
+          // If a token has been provided, calculate the TTL
+          val tokenExpiration = DateUtils.parseDate(token.expirationDate).getTime - System.currentTimeMillis()
+
+          if (tokenExpiration < 1) {
+            // If the token has already expired, don't cache
+            None
+          } else {
+            val tokenExpirationSeconds = tokenExpiration / 1000
+
+            if (tokenExpirationSeconds > Int.MaxValue) {
+              logger.warn("Token expiration time exceeds maximum possible value -- setting to maximum possible value")
+            }
+            // Cache for the token TTL after converting from milliseconds to seconds
+            Some(safeLongToInt(tokenExpirationSeconds))
+          }
+        case None =>
+          // If a token has not been provided, don't cache
+          None
+      }
+    }
+
+    val configuredTtl = {
+      if (baseTtl < 0) {
+        // Caching is disabled by configuration
+        None
+      } else  {
+        // Caching is set to forever
+        Some(baseTtl)
+      }
+    }
+
+    (tokenTtl, configuredTtl) match {
+      case (Some(tttl), None) => None
+      case (Some(tttl), Some(cttl)) => Some(Math.min(tttl, cttl))
+      case (None, Some(cttl)) => Some(cttl)
+      case (None, None) => None
+    }
+  }
 
 
   object SystemModelConfigListener extends UpdateListener[SystemModel] {
@@ -263,6 +320,7 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
 
     override def configurationUpdated(configurationObject: RackspaceImpersonation): Unit = {
       // Removes an extra slash at the end of the URI if applicable
+      impersonationConfig = configurationObject
       val serviceUri = impersonationConfig.getAuthenticationServer.getHref
       impersonationConfig.getAuthenticationServer.setHref(serviceUri.stripSuffix("/"))
 
@@ -277,6 +335,19 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
 object ImpersonationFilter {
 
   case class MissingAuthTokenException(message: String, cause: Throwable = null) extends Exception(message, cause)
+
+  implicit def toCachingTry[T](tryToWrap: Try[T]): CachingTry[T] = new CachingTry(tryToWrap)
+
+  class CachingTry[T](wrappedTry: Try[T]) {
+    def cacheOnSuccess(cachingFunction: T => Unit): Try[T] = {
+      wrappedTry match {
+        case Success(it) =>
+          cachingFunction(it)
+          wrappedTry
+        case f: Failure[_] => f
+      }
+    }
+  }
 
   sealed trait ImpersonationResult
 
