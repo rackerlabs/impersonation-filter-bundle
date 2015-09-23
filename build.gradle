@@ -6,6 +6,8 @@ buildscript {
         maven { url 'https://repo.spring.io/plugins-release' }
         maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
         maven { url "https://plugins.gradle.org/m2/" }
+        maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
+        maven { url 'https://repo.spring.io/plugins-release' }
     }
     dependencies {
         classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
@@ -108,7 +110,7 @@ project(':impersonation-filter') {
         maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
     }
     dependencies {
-        //compile 'org.apache.commons:commons-lang3:3.3.2'
+        testCompile 'org.apache.commons:commons-lang3:3.3.2'
         //compile 'com.typesafe.scala-logging:scala-logging-slf4j_2.10:2.1.2'
         compile 'org.openrepose:utilities:7.1.5.1'
         compile 'org.openrepose:core-lib:7.1.5.1'
@@ -119,7 +121,16 @@ project(':impersonation-filter') {
         testCompile 'com.mockrunner:mockrunner-servlet:1.0.0'
         compile 'org.slf4j:slf4j-api:1.7.7'
 
+        //testCompile 'com.sun.jersey:jersey-core:1.19'
+        //testCompile 'com.sun.jersey:jersey-json:1.19'
+        //testCompile 'com.sun.jersey:jersey-client:1.19'
+        //testCompile 'com.sun.jersey:jersey-test-framework:1.19'
+        //testCompile 'org.glassfish:javax.servlet:3.1.1'
+        compile 'javax.ws.rs:javax.ws.rs-api:2.0.1'
+        //compile 'javax.ws.rs:jsr311-api:1.1.1'
         provided 'javax:javaee-web-api:6.0'
+        //provided 'javax.mail:javax.mail-api:1.5.4'
+        compile 'javax.servlet:javax.servlet-api:3.1.0'
         provided 'javax:javaee-api:6.0'
         jaxb 'com.sun.xml.bind:jaxb-xjc:2.1.8'
         jaxb "org.jvnet.jaxb2_commons:jaxb2-basics-ant:0.6.5"
