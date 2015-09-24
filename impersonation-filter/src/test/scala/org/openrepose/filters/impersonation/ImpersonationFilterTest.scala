@@ -1028,6 +1028,7 @@ with HttpDelegationManager {
       ).thenReturn(impersonationResponse)
 
       val response = new MockHttpServletResponse
+      response.addHeader(CommonHttpHeader.USER_AGENT.toString, "UNIT-TEST")
       val filterChain = new MockFilterChain()
       filter.doFilter(request, response, filterChain)
       response.getErrorCode should be(HttpServletResponse.SC_OK)
@@ -1118,6 +1119,7 @@ with HttpDelegationManager {
       ).thenReturn(impersonationResponse)
 
       val response = new MockHttpServletResponse
+      response.addHeader(CommonHttpHeader.RETRY_AFTER.toString, DateTime.now().toString())
       val filterChain = new MockFilterChain()
       filter.doFilter(request, response, filterChain)
       response.getErrorCode should be(HttpServletResponse.SC_OK)
