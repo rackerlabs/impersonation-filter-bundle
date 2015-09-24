@@ -134,8 +134,8 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
           case Failure(e: OverLimitException) =>
             response.addHeader(HttpHeaders.RETRY_AFTER, e.retryAfter)
             Reject(HttpServletResponse.SC_SERVICE_UNAVAILABLE, Some(e.getMessage))
-          case Failure(e) if e.getCause.isInstanceOf[AkkaServiceClientException] && e.getCause.getCause.isInstanceOf[TimeoutException] =>
-            Reject(HttpServletResponse.SC_GATEWAY_TIMEOUT, Some(s"Call timed out: ${e.getMessage}"))
+          //case Failure(e) if e.getCause.isInstanceOf[AkkaServiceClientException] && e.getCause.getCause.isInstanceOf[TimeoutException] =>
+          //  Reject(HttpServletResponse.SC_GATEWAY_TIMEOUT, Some(s"Call timed out: ${e.getMessage}"))
           case Failure(e) => Reject(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, Some(e.getMessage))
         }
       }
