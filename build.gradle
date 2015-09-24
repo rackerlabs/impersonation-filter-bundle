@@ -120,18 +120,14 @@ project(':impersonation-filter') {
         testCompile 'org.scalatest:scalatest_2.10:2.2.5'
         testCompile 'org.mockito:mockito-all:1.9.5'
         testCompile 'junit:junit:4.12'
-        testCompile 'com.mockrunner:mockrunner-servlet:1.0.0'
-        compile 'org.slf4j:slf4j-api:1.7.7'
+        testCompile('com.mockrunner:mockrunner-servlet:1.0.0') {
+            exclude group: 'xerces', module: 'xercesImpl'
+            exclude group: 'commons-logging', module: 'commons-logging'
+            exclude group: 'org.apache.tomcat', module: 'servlet-api'
+        }
 
-        //testCompile 'com.sun.jersey:jersey-core:1.19'
-        //testCompile 'com.sun.jersey:jersey-json:1.19'
-        //testCompile 'com.sun.jersey:jersey-client:1.19'
-        //testCompile 'com.sun.jersey:jersey-test-framework:1.19'
-        //testCompile 'org.glassfish:javax.servlet:3.1.1'
         compile 'javax.ws.rs:javax.ws.rs-api:2.0.1'
-        //compile 'javax.ws.rs:jsr311-api:1.1.1'
         provided 'javax:javaee-web-api:6.0'
-        //provided 'javax.mail:javax.mail-api:1.5.4'
         compile 'javax.servlet:javax.servlet-api:3.1.0'
         provided 'javax:javaee-api:6.0'
         jaxb 'com.sun.xml.bind:jaxb-xjc:2.1.8'

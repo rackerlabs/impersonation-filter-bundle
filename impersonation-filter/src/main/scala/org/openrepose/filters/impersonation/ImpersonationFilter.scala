@@ -269,7 +269,7 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
           val tokenExpiration = DateUtils.parseDate(token.expirationDate).getTime - System.currentTimeMillis()
 
           if (tokenExpiration < 1) {
-            // If the token has already expired, don't cache
+            // If the token has already expired or set to 0, don't cache
             None
           } else {
             val tokenExpirationSeconds = tokenExpiration / 1000
@@ -299,7 +299,7 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
     (tokenTtl, configuredTtl) match {
       case (Some(tttl), None) => None
       case (Some(tttl), Some(cttl)) => Some(Math.min(tttl, cttl))
-      case (None, Some(cttl)) => Some(cttl)
+      case (None, Some(cttl)) => None
       case (None, None) => None
     }
   }

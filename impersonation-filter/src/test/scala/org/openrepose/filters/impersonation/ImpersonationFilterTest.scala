@@ -2,6 +2,7 @@ package org.openrepose.filters.impersonation
 
 import java.io.ByteArrayInputStream
 import java.net.URL
+import java.util.concurrent.TimeUnit
 import javax.servlet.http.HttpServletResponse
 
 import com.mockrunner.mock.web.{MockFilterChain, MockFilterConfig, MockHttpServletRequest, MockHttpServletResponse}
@@ -287,6 +288,41 @@ with HttpDelegationManager {
         getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
       filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
         getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+    }
+
+    it("Impersonates a user and passes down trace id when specified") {
+      //make a request and validate that it called the akka service client?
+      val request = new MockHttpServletRequest()
+      request.addHeader(OpenStackServiceHeader.USER_NAME.toString, VALID_USER)
+      request.addHeader(CommonHttpHeader.TRACE_GUID.toString, "valid-trace-guid")
+
+      val impersonationToken = ImpersonationHandler.ImpersonationToken(dateTime.toString, VALID_TOKEN)
+
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn("test", "test", "test")
+
+      //Pretend like identity is going to give us a valid admin token
+      val impersonationResponse = new ServiceClientResponse(200, new ByteArrayInputStream(impersonateTokenResponse().getBytes()))
+
+      when(mockAkkaService.post(
+        any[String],
+        any[String],
+        any[java.util.Map[String, String]],
+        any[String],
+        any[javax.ws.rs.core.MediaType])
+      ).thenReturn(impersonationResponse)
+
+      val response = new MockHttpServletResponse
+      val filterChain = new MockFilterChain()
+      filter.doFilter(request, response, filterChain)
+
+      filterChain.getLastRequest shouldNot be(null)
+      filterChain.getLastResponse shouldNot be(null)
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.TRACE_GUID.toString).getValue shouldEqual "valid-trace-guid"
     }
 
     it("Does not impersonate if x-user-name when missing") {
@@ -707,7 +743,216 @@ with HttpDelegationManager {
     }
   }
 
-  describe("TTL") {}
+  describe("TTL") {
+
+    it("Impersonates a user allowing through the filter and creates new header and caches forever with 0 ttl") {
+      def configuration = Marshaller.impersonationConfigFromString(
+        """<?xml version="1.0" encoding="UTF-8"?>
+          |<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+          |    <authentication-server
+          |            username="username"
+          |            password="password"
+          |            href="https://some.identity.com"
+          |            impersonation-ttl="0"
+          |            />
+          |</rackspace-impersonation>
+        """.stripMargin)
+
+      val filter: ImpersonationFilter = new ImpersonationFilter(mockConfigService, mockAkkaService, mockDatastoreService)
+
+      val config: MockFilterConfig = new MockFilterConfig
+      filter.init(config)
+      filter.ImpersonationConfigListener.configurationUpdated(configuration)
+      filter.SystemModelConfigListener.configurationUpdated(mockSystemModel)
+
+      //make a request and validate that it called the akka service client?
+      val request = new MockHttpServletRequest()
+      request.addHeader(OpenStackServiceHeader.USER_NAME.toString, VALID_USER)
+
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn(null, "glibglob")
+
+      //Pretend like identity is going to give us a valid admin token
+      val impersonationResponse = new ServiceClientResponse(200, new ByteArrayInputStream(impersonateTokenResponse().getBytes()))
+      val adminResponse = new ServiceClientResponse(200, new ByteArrayInputStream(adminAuthenticationTokenResponse().getBytes()))
+
+      when(mockAkkaService.post(
+        any[String],
+        any[String],
+        any[java.util.Map[String, String]],
+        any[String],
+        any[javax.ws.rs.core.MediaType])
+      ).thenReturn(adminResponse, impersonationResponse)
+
+      val response = new MockHttpServletResponse
+      val filterChain = new MockFilterChain()
+      filter.doFilter(request, response, filterChain)
+
+      filterChain.getLastRequest shouldNot be(null)
+      filterChain.getLastResponse shouldNot be(null)
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+      verify(mockDatastore, times(1)).put(anyString(), any[Serializable])
+      verify(mockDatastore, times(1)).put(anyString(), any[Serializable], anyInt(), any[TimeUnit])
+    }
+
+    it("Impersonates a user allowing through the filter and creates new header but does not cache with -1 ttl") {
+      def configuration = Marshaller.impersonationConfigFromString(
+        """<?xml version="1.0" encoding="UTF-8"?>
+          |<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+          |    <authentication-server
+          |            username="username"
+          |            password="password"
+          |            href="https://some.identity.com"
+          |            impersonation-ttl="-1"
+          |            />
+          |</rackspace-impersonation>
+        """.stripMargin)
+
+      val filter: ImpersonationFilter = new ImpersonationFilter(mockConfigService, mockAkkaService, mockDatastoreService)
+
+      val config: MockFilterConfig = new MockFilterConfig
+      filter.init(config)
+      filter.ImpersonationConfigListener.configurationUpdated(configuration)
+      filter.SystemModelConfigListener.configurationUpdated(mockSystemModel)
+
+      //make a request and validate that it called the akka service client?
+      val request = new MockHttpServletRequest()
+      request.addHeader(OpenStackServiceHeader.USER_NAME.toString, VALID_USER)
+
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn(null, "glibglob")
+
+      //Pretend like identity is going to give us a valid admin token
+      val impersonationResponse = new ServiceClientResponse(200, new ByteArrayInputStream(impersonateTokenResponse().getBytes()))
+      val adminResponse = new ServiceClientResponse(200, new ByteArrayInputStream(adminAuthenticationTokenResponse().getBytes()))
+
+      when(mockAkkaService.post(
+        any[String],
+        any[String],
+        any[java.util.Map[String, String]],
+        any[String],
+        any[javax.ws.rs.core.MediaType])
+      ).thenReturn(adminResponse, impersonationResponse)
+
+      val response = new MockHttpServletResponse
+      val filterChain = new MockFilterChain()
+      filter.doFilter(request, response, filterChain)
+
+      filterChain.getLastRequest shouldNot be(null)
+      filterChain.getLastResponse shouldNot be(null)
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+      verify(mockDatastore, times(1)).put(anyString(), any[Serializable])
+      verify(mockDatastore, never()).put(anyString(), any[Serializable], anyInt(), any[TimeUnit])
+    }
+
+    it("Impersonates a user but doesn't cache because token ttl < config ttl") {
+      def configuration = Marshaller.impersonationConfigFromString(
+        """<?xml version="1.0" encoding="UTF-8"?>
+          |<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+          |    <authentication-server
+          |            username="username"
+          |            password="password"
+          |            href="https://some.identity.com"
+          |            impersonation-ttl="300"
+          |            />
+          |</rackspace-impersonation>
+        """.stripMargin)
+
+      val filter: ImpersonationFilter = new ImpersonationFilter(mockConfigService, mockAkkaService, mockDatastoreService)
+
+      val config: MockFilterConfig = new MockFilterConfig
+      filter.init(config)
+      filter.ImpersonationConfigListener.configurationUpdated(configuration)
+      filter.SystemModelConfigListener.configurationUpdated(mockSystemModel)
+
+      //make a request and validate that it called the akka service client?
+      val request = new MockHttpServletRequest()
+      request.addHeader(OpenStackServiceHeader.USER_NAME.toString, VALID_USER)
+
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn(null, "glibglob")
+
+      //Pretend like identity is going to give us a valid admin token
+      val impersonationResponse = new ServiceClientResponse(200, new ByteArrayInputStream(impersonateTokenResponse(expires = DateTime.now()).getBytes()))
+      val adminResponse = new ServiceClientResponse(200, new ByteArrayInputStream(adminAuthenticationTokenResponse().getBytes()))
+
+      when(mockAkkaService.post(
+        any[String],
+        any[String],
+        any[java.util.Map[String, String]],
+        any[String],
+        any[javax.ws.rs.core.MediaType])
+      ).thenReturn(adminResponse, impersonationResponse)
+
+      val response = new MockHttpServletResponse
+      val filterChain = new MockFilterChain()
+      filter.doFilter(request, response, filterChain)
+
+      filterChain.getLastRequest shouldNot be(null)
+      filterChain.getLastResponse shouldNot be(null)
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+      verify(mockDatastore, times(1)).put(anyString(), any[Serializable])
+      verify(mockDatastore, never()).put(anyString(), any[Serializable], anyInt(), any[TimeUnit])
+    }
+
+    it("Impersonates a user allowing through the filter and creates new header but does not cache with -1 ttl and expired token") {
+      def configuration = Marshaller.impersonationConfigFromString(
+        """<?xml version="1.0" encoding="UTF-8"?>
+          |<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+          |    <authentication-server
+          |            username="username"
+          |            password="password"
+          |            href="https://some.identity.com"
+          |            impersonation-ttl="-1"
+          |            />
+          |</rackspace-impersonation>
+        """.stripMargin)
+
+      val filter: ImpersonationFilter = new ImpersonationFilter(mockConfigService, mockAkkaService, mockDatastoreService)
+
+      val config: MockFilterConfig = new MockFilterConfig
+      filter.init(config)
+      filter.ImpersonationConfigListener.configurationUpdated(configuration)
+      filter.SystemModelConfigListener.configurationUpdated(mockSystemModel)
+
+      //make a request and validate that it called the akka service client?
+      val request = new MockHttpServletRequest()
+      request.addHeader(OpenStackServiceHeader.USER_NAME.toString, VALID_USER)
+
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn(null, "glibglob")
+
+      //Pretend like identity is going to give us a valid admin token
+      val impersonationResponse = new ServiceClientResponse(200, new ByteArrayInputStream(impersonateTokenResponse(expires = DateTime.now()).getBytes()))
+      val adminResponse = new ServiceClientResponse(200, new ByteArrayInputStream(adminAuthenticationTokenResponse().getBytes()))
+
+      when(mockAkkaService.post(
+        any[String],
+        any[String],
+        any[java.util.Map[String, String]],
+        any[String],
+        any[javax.ws.rs.core.MediaType])
+      ).thenReturn(adminResponse, impersonationResponse)
+
+      val response = new MockHttpServletResponse
+      val filterChain = new MockFilterChain()
+      filter.doFilter(request, response, filterChain)
+
+      filterChain.getLastRequest shouldNot be(null)
+      filterChain.getLastResponse shouldNot be(null)
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(CommonHttpHeader.AUTH_TOKEN.toString).getValue shouldEqual VALID_TOKEN
+      filterChain.getLastRequest.asInstanceOf[MutableHttpServletRequest].
+        getHeaderValue(OpenStackServiceHeader.USER_NAME.toString).getValue shouldEqual VALID_USER
+      verify(mockDatastore, times(1)).put(anyString(), any[Serializable])
+      verify(mockDatastore, never()).put(anyString(), any[Serializable], anyInt(), any[TimeUnit])
+    }
+  }
 
   describe("Delegation") {}
 }
