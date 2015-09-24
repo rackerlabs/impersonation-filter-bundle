@@ -544,7 +544,7 @@ with HttpDelegationManager {
 
       val impersonationToken = ImpersonationHandler.ImpersonationToken(dateTime.toString, VALID_TOKEN)
 
-      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn("test1", "test2", null)
+      when(mockDatastore.get(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn("test1", null, null)
       when(mockDatastore.remove(ImpersonationHandler.ADMIN_TOKEN_KEY)).thenReturn(true)
 
       //Pretend like identity is going to give us a valid admin token
