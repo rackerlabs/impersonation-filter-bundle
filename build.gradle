@@ -2,25 +2,29 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
+        jcenter()
         maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
         maven { url 'https://repo.spring.io/plugins-release' }
         maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
         maven { url "https://plugins.gradle.org/m2/" }
         maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
-        maven { url 'https://repo.spring.io/plugins-release' }
     }
     dependencies {
         classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
         classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7'
         classpath "com.github.jacobono:gradle-jaxb-plugin:1.3.5"
+        classpath "org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:1.0.2"
 
     }
+
 }
+
 
 configure(allprojects) {
     apply plugin: 'propdeps'
     apply plugin: 'propdeps-maven'
     apply plugin: 'propdeps-idea'
+    apply plugin: 'scala'
 }
 
 configurations.all {
@@ -35,7 +39,6 @@ allprojects {
     }
     sourceCompatibility = '1.7'
     targetCompatibility = '1.7'
-
 }
 
 subprojects {
@@ -44,11 +47,14 @@ subprojects {
     version = '3.0'
 
     repositories {
+        mavenLocal()
         mavenCentral()
+        maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
+        maven { url "http://repo.typesafe.com/typesafe/maven-releases" }
+        maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
     }
 
     dependencies {
-        compile "org.scala-lang:scala-library:2.10.4"
     }
 
     tasks.withType(ScalaCompile) {
@@ -60,8 +66,8 @@ subprojects {
             set.allSource.srcDirs.each { it.mkdirs() }
         }
     }
-
 }
+
 
 /**
  * Because an Ear project is always the same, this is a function to clean up our build script
@@ -100,22 +106,73 @@ def filterBundleProject(String projectName, List<String> deps) {
 
 }
 
+project(':impersonation-filter-tests'){
+    apply plugin: 'groovy'
+    apply plugin: 'org.unbroken-dome.test-sets'
+
+    def spockVersion = "1.0-groovy-2.4"
+
+    testSets {
+        integrationTest
+    }
+
+    check.dependsOn integrationTest
+    integrationTest.mustRunAfter test
+
+    dependencies {
+        integrationTestCompile 'org.openrepose:core-lib:7.1.5.1'
+        integrationTestCompile 'org.apache.commons:commons-lang3:3.3.2'
+        integrationTestCompile "org.codehaus.groovy:groovy:2.4.4"
+        integrationTestCompile("junit:junit:4.12")
+        integrationTestCompile("org.apache.httpcomponents:httpclient:4.5.1")
+        integrationTestCompile("org.spockframework:spock-core:$spockVersion")
+        integrationTestCompile("org.spockframework:spock-spring:$spockVersion")
+        integrationTestCompile("org.springframework:spring-test:4.1.4.RELEASE")
+        integrationTestCompile("org.apache.logging.log4j:log4j-core:2.3")
+        integrationTestCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
+        integrationTestCompile("org.rackspace:deproxy:0.21")
+    }
+
+    ext {
+        reposeValveJar = 'valve.jar'
+        filterEar = 'filter-bundle-*.ear'
+        projectSetDir = "$projectDir/.."
+        projectSupportDir = "$projectDir/../../repose-support"
+
+        dependencyDir = "$projectDir/target/dependency"
+        custombundleDir = "$projectDir/../custom-bundle/target"
+
+        filterExtensionsEar = "extensions-filter-bundle-*.ear"
+        impersonationBundleEar = "impersonation-bundle-*.ear"
+
+        targetHostname = "localhost"
+
+        reposeHome = "$buildDir/repose_home"
+        reposeConfigDir = "$reposeHome/configs"
+        reposeValveJarLocation = "$reposeHome/$reposeValveJar"
+        reposeConfigTemplates = "$buildDir/configs"
+        reposeVersion = "7.1.5.1"
+    }
+
+    //set up repose stuff
+    task myCopy(type: Copy) {
+        from('source')
+        into('target')
+        include('*.war')
+    }
+
+
+}
+
 project(':impersonation-filter') {
     apply plugin: "com.github.jacobono.jaxb"
     apply plugin: 'jacoco'
 
-    repositories {
-        mavenLocal()
-        mavenCentral()
-        maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
-        maven { url "http://repo.typesafe.com/typesafe/maven-releases" }
-        maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
-    }
     dependencies {
-        testCompile 'org.apache.commons:commons-lang3:3.3.2'
-        //compile 'com.typesafe.scala-logging:scala-logging-slf4j_2.10:2.1.2'
-        compile 'org.openrepose:utilities:7.1.5.1'
+        compile "org.scala-lang:scala-library:2.10.4"
         compile 'org.openrepose:core-lib:7.1.5.1'
+        testCompile 'org.apache.commons:commons-lang3:3.3.2'
+        compile 'org.openrepose:utilities:7.1.5.1'
         compile 'org.openrepose:http-delegation:4.0.0'
         testCompile 'org.scalatest:scalatest_2.10:2.2.5'
         testCompile 'org.mockito:mockito-all:1.9.5'
