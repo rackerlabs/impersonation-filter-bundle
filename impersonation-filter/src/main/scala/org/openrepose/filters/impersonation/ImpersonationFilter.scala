@@ -36,6 +36,7 @@ import org.openrepose.core.systemmodel.SystemModel
 import org.openrepose.filters.config.RackspaceImpersonation
 import org.openrepose.filters.impersonation.ImpersonationHandler._
 import org.apache.http.client.utils.DateUtils
+import com.rackspace.httpdelegation.HttpDelegationManager
 
 
 import scala.concurrent.TimeoutException
@@ -44,7 +45,7 @@ import scala.util.{Failure, Random, Success, Try}
 class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
                                     akkaServiceClient: AkkaServiceClient,
                                     datastoreService: DatastoreService)
-  extends Filter with LazyLogging {
+  extends Filter with LazyLogging with HttpDelegationManager {
 
   private final val DEFAULT_CONFIG = "rackspace-impersonation.cfg.xml"
   private final val SYSTEM_MODEL_CONFIG = "system-model.cfg.xml"
@@ -148,11 +149,9 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
           Option(config.getDelegating) match {
             case Some(delegating) =>
               logger.debug(s"Delegating with status $statusCode caused by: ${message.getOrElse("unspecified")}")
-              logger.debug("Not delegating at the moment.  Maybe later?")
-              /*
               val delegationHeaders = buildDelegationHeaders(statusCode,
-                "keystone-v2",
-                message.getOrElse("Failure in the Keystone v2 filter").replace("\n", " "),
+                "rackspace-impersonation",
+                message.getOrElse("Failure in the Rackspace impersonation filter").replace("\n", " "),
                 delegating.getQuality)
 
               delegationHeaders foreach { case (key, values) =>
@@ -161,17 +160,6 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
                 }
               }
               chain.doFilter(request, response)
-
-              logger.trace(s"Processing response with status code: $statusCode")
-              */
-              logger.debug(s"Rejecting with status $statusCode")
-
-              message match {
-                case Some(m) =>
-                  logger.debug(s"Rejection message: $m")
-                  response.sendError(statusCode, m)
-                case None => response.sendError(statusCode)
-              }
             case None =>
               logger.debug(s"Rejecting with status $statusCode")
 
