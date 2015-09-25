@@ -31,7 +31,6 @@ import org.rackspace.deproxy.PortFinder
 class TestProperties {
 
     String configDirectory
-    String rawConfigDirectory
     String logFile
     String logFilePattern
     String configTemplates
@@ -58,8 +57,6 @@ class TestProperties {
     int targetPort
     int targetPort2
     int identityPort
-    int valkyriePort
-    int monitoringPort
     int atomPort
     String targetHostname
 
@@ -96,18 +93,9 @@ class TestProperties {
             targetPort = PortFinder.Singleton.getNextOpenPort()
             targetPort2 = PortFinder.Singleton.getNextOpenPort()
             identityPort = PortFinder.Singleton.getNextOpenPort()
-            valkyriePort = PortFinder.Singleton.getNextOpenPort()
-            monitoringPort = PortFinder.Singleton.getNextOpenPort()
             atomPort = PortFinder.Singleton.getNextOpenPort()
             targetHostname = properties.getProperty("target.hostname")
-            rawConfigDirectory = properties.getProperty("repose.raw.config.directory")
             reposeVersion = properties.getProperty("repose.version")
-
-            print properties.getProperty("repose.version")
-
-            properties.getProperties().each { k, v ->
-                println "$k => $v" //Should override anything, if there's anything to override
-            }
 
             def reposeVersionMatcher = reposeVersion =~ /\.?(\d)/
             reposeMajorVersion = Integer.parseInt(reposeVersionMatcher[0][1] as String)
@@ -117,8 +105,6 @@ class TestProperties {
             reposeHome = properties.getProperty("repose.home")
 
         } catch (Exception e) {
-            System.out.println(e.message)
-            System.out.println(ClassLoader.getSystemResource("test.properties"))
             throw new RuntimeException("Failure in setup of test: unable to read property files", e)
         } finally {
             propertiesStream.close()
@@ -143,9 +129,7 @@ class TestProperties {
                 'repose.home'            : reposeHome,
                 configDirectory          : configDirectory,
                 'repose.config.directory': configDirectory,
-                'project.build.directory': projectBuildDirectory,
-                'valkyriePort'           : valkyriePort,
-                'monitoringPort'         : monitoringPort
+                'project.build.directory': projectBuildDirectory
         ]
     }
 

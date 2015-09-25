@@ -19,7 +19,6 @@ buildscript {
 
 }
 
-
 configure(allprojects) {
     apply plugin: 'propdeps'
     apply plugin: 'propdeps-maven'
@@ -105,61 +104,96 @@ def filterBundleProject(String projectName, List<String> deps) {
     }
 
 }
+import org.apache.tools.ant.filters.ReplaceTokens
 
 project(':impersonation-filter-tests'){
+
     apply plugin: 'groovy'
     apply plugin: 'org.unbroken-dome.test-sets'
+    //apply plugin: 'ear'
 
     def spockVersion = "1.0-groovy-2.4"
 
-    testSets {
-        integrationTest
+    repositories {
+        flatDir {
+            name 'localRepository'
+        }
+        maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
+        localRepository {
+            dirs 'lib'
+        }
     }
-
-    check.dependsOn integrationTest
-    integrationTest.mustRunAfter test
 
     dependencies {
-        integrationTestCompile 'org.openrepose:core-lib:7.1.5.1'
-        integrationTestCompile 'org.apache.commons:commons-lang3:3.3.2'
-        integrationTestCompile "org.codehaus.groovy:groovy:2.4.4"
-        integrationTestCompile("junit:junit:4.12")
-        integrationTestCompile("org.apache.httpcomponents:httpclient:4.5.1")
-        integrationTestCompile("org.spockframework:spock-core:$spockVersion")
-        integrationTestCompile("org.spockframework:spock-spring:$spockVersion")
-        integrationTestCompile("org.springframework:spring-test:4.1.4.RELEASE")
-        integrationTestCompile("org.apache.logging.log4j:log4j-core:2.3")
-        integrationTestCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
-        integrationTestCompile("org.rackspace:deproxy:0.21")
+        testCompile 'org.openrepose:core-lib:7.1.5.1'
+        testCompile 'org.apache.commons:commons-lang3:3.3.2'
+        testCompile "org.codehaus.groovy:groovy:2.4.4"
+        testCompile("junit:junit:4.12")
+        testCompile("org.apache.httpcomponents:httpclient:4.5.1")
+        testCompile("org.spockframework:spock-core:$spockVersion")
+        testCompile("org.spockframework:spock-spring:$spockVersion")
+        testCompile("org.springframework:spring-test:4.1.4.RELEASE")
+        testCompile("org.apache.logging.log4j:log4j-core:2.3")
+        testCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
+        testCompile("org.rackspace:deproxy:0.21")
+        provided 'org.openrepose:http-delegation:4.0.0'
+        runtime("org.openrepose:valve:7.1.5.1@jar")
+        runtime "org.openrepose:filter-bundle:7.1.5.1@ear"
+        runtime "org.openrepose:extensions-filter-bundle:7.1.5.1@ear"
     }
 
-    ext {
-        reposeValveJar = 'valve.jar'
-        filterEar = 'filter-bundle-*.ear'
-        projectSetDir = "$projectDir/.."
-        projectSupportDir = "$projectDir/../../repose-support"
+    task initConfig(type: Copy) {
+        from('src/test/resources') {
+            include '**/*.properties'
+            filter(ReplaceTokens, tokens: [
+                    "repose.version": '7.1.5.1',
+                    "repose.valve.jar": 'valve-7.1.5.1.jar',
+                    "repose.container": "valve",
+                    "build.dir": buildDir.absolutePath,
+                    "repose.home": buildDir.absolutePath + "/repose_home",
+                    "target.hostname": "localhost",
+                    "repose.config.templates": buildDir.absolutePath + "/configs"
+            ])
+        }
+        into 'build/resources/test'
 
-        dependencyDir = "$projectDir/target/dependency"
-        custombundleDir = "$projectDir/../custom-bundle/target"
-
-        filterExtensionsEar = "extensions-filter-bundle-*.ear"
-        impersonationBundleEar = "impersonation-bundle-*.ear"
-
-        targetHostname = "localhost"
-
-        reposeHome = "$buildDir/repose_home"
-        reposeConfigDir = "$reposeHome/configs"
-        reposeValveJarLocation = "$reposeHome/$reposeValveJar"
-        reposeConfigTemplates = "$buildDir/configs"
-        reposeVersion = "7.1.5.1"
+        outputs.upToDateWhen { false }
     }
 
-    //set up repose stuff
-    task myCopy(type: Copy) {
-        from('source')
-        into('target')
-        include('*.war')
+    task copyConfigs(type: Copy) {
+        logger.warn(rootDir.absolutePath)
+        from('src/test/configs')
+        into 'build/configs'
     }
+
+    task copyCustomBundle(type: Copy) {
+        from("${rootDir.absolutePath}/impersonation-filter-bundle-impersonation-filter-bundle/build/libs") {
+            include '*.ear'
+        }
+        into 'build/repose_home/artifacts'
+    }
+
+    task copyRuntimeLibs(type: Copy) {
+        into "build/libs"
+        from configurations.runtime
+
+        outputs.upToDateWhen { false }
+    }
+
+    task copyReposeBundles(type: Copy) {
+        into 'build/repose_home/artifacts'
+        from("build/libs") {
+            include '*.ear'
+            include 'valve*.jar'
+        }
+    }
+
+    test.dependsOn(copyConfigs, initConfig, copyCustomBundle, copyRuntimeLibs, copyReposeBundles)
+    copyConfigs.mustRunAfter initConfig
+    copyCustomBundle.mustRunAfter copyConfigs
+    copyRuntimeLibs.mustRunAfter testClasses
+    copyReposeBundles.mustRunAfter copyRuntimeLibs
+    initConfig.mustRunAfter processTestResources
 
 
 }

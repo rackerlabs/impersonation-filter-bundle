@@ -10,16 +10,16 @@ import spock.lang.Unroll
  * Created by dimi5963 on 8/11/15.
  */
 class ImpersonationTest  extends ReposeValveTest {
-    static Endpoint monitoringEndpoint
+    static Endpoint identityEndpoint
 
     def setupSpec() {
         deproxy = new Deproxy()
         deproxy.addEndpoint(properties.targetPort)
-        monitoringEndpoint = deproxy.addEndpoint(properties.monitoringPort, 'monitoring service', null, { return new Response(200, "ok", ["content-type": "application/json"], "{\"test\":\"data\"}") })
+        identityEndpoint = deproxy.addEndpoint(properties.identityPort, 'identity service', null, { return new Response(200, "ok", ["content-type": "application/json"], "{\"test\":\"data\"}") })
 
         def params = properties.defaultTemplateParams
         repose.configurationProvider.applyConfigs("common", params)
-        repose.configurationProvider.applyConfigs("features/monitoring", params)
+        repose.configurationProvider.applyConfigs("features/impersonation", params)
         repose.start()
         repose.waitForNon500FromUrl(reposeEndpoint)
     }
@@ -30,13 +30,13 @@ class ImpersonationTest  extends ReposeValveTest {
     }
 
     def cleanup() {
-        deproxy._removeEndpoint(monitoringEndpoint)
+        deproxy._removeEndpoint(identityEndpoint)
     }
 
     @Unroll("request: #requestMethod #requestURI -d #requestBody will return #responseCode with #responseMessage")
     def "When doing the test"() {
         given: "set up monitoring response"
-        monitoringEndpoint.defaultHandler = monitoringResponse
+        identityEndpoint.defaultHandler = identityResponse
 
         when: "Do awesome request"
         def mc = deproxy.makeRequest([
