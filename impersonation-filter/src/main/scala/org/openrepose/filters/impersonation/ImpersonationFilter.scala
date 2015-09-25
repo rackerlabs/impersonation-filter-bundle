@@ -42,6 +42,7 @@ import com.rackspace.httpdelegation.HttpDelegationManager
 import scala.concurrent.TimeoutException
 import scala.util.{Failure, Random, Success, Try}
 
+@Named
 class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
                                     akkaServiceClient: AkkaServiceClient,
                                     datastoreService: DatastoreService)
