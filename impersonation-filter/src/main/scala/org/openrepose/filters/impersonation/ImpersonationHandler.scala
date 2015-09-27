@@ -43,7 +43,7 @@ class ImpersonationHandler(
     )
 
     val akkaResponse = Try(akkaServiceClient.post(ImpersonationHandler.ADMIN_TOKEN_KEY,
-      s"$identityEndpoint$ImpersonationHandler.TOKEN_ENDPOINT",
+      s"$identityEndpoint${ImpersonationHandler.TOKEN_ENDPOINT}",
       (Map(CommonHttpHeader.ACCEPT.toString -> MediaType.APPLICATION_JSON)
         ++ traceId.map(CommonHttpHeader.TRACE_GUID.toString -> _)).asJava,
       Json.stringify(authenticationPayload),
@@ -77,6 +77,7 @@ class ImpersonationHandler(
 
 
   final def getImpersonationToken(userName: String, expirationTtl: Int, validatingToken: String): Try[ImpersonationHandler.ImpersonationToken] = {
+    logger.trace(s"Retrieve impersonation token from identity")
     //authenticate, or get the admin token
     val impersonationPayload = Json.obj(
       "RAX-AUTH:impersonation" -> Json.obj(
@@ -87,7 +88,7 @@ class ImpersonationHandler(
       )
     )
 
-    val akkaResponse = Try(akkaServiceClient.post(ImpersonationHandler.ADMIN_TOKEN_KEY,
+    val akkaResponse = Try(akkaServiceClient.post(ImpersonationHandler.IMPERSONATION_TOKEN_KEY,
       s"$identityEndpoint${ImpersonationHandler.IMPERSONATION_ENDPOINT}",
       (Map(CommonHttpHeader.AUTH_TOKEN.toString -> validatingToken,
         CommonHttpHeader.ACCEPT.toString -> MediaType.APPLICATION_JSON)
@@ -99,9 +100,11 @@ class ImpersonationHandler(
     akkaResponse match {
       case Success(serviceClientResponse) =>
         if(serviceClientResponse != null) {
+          logger.trace(s"Response code from identity is ${serviceClientResponse.getStatus}")
           serviceClientResponse.getStatus match {
             case statusCode if statusCode >= 200 && statusCode < 300 =>
               val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
+              logger.trace(s"Response from identity is ${jsonResponse}")
               try {
                 val json = Json.parse(jsonResponse)
                 //Have to convert it to a vector, because List isn't serializeable in 2.10
@@ -133,9 +136,10 @@ class ImpersonationHandler(
 
 object ImpersonationHandler {
   final val SC_TOO_MANY_REQUESTS = 429
-  final val TOKEN_ENDPOINT = "/v2.0/tokens"
-  final val IMPERSONATION_ENDPOINT = "/v2.0/RAX-AUTH/impersonation-tokens"
+  final val TOKEN_ENDPOINT = "/tokens"
+  final val IMPERSONATION_ENDPOINT = "/RAX-AUTH/impersonation-tokens"
   final val ADMIN_TOKEN_KEY = "IDENTITY:V2:ADMIN_TOKEN"
+  final val IMPERSONATION_TOKEN_KEY = "IDENTITY:V2:IMPERSONATION_TOKEN"
   final val TOKEN_KEY_PREFIX = "IDENTITY:V2:TOKEN:"
   final val IMPERSONATION_KEY_PREFIX = "IDENTITY:V2:IMPERSONATION_TOKEN:"
 

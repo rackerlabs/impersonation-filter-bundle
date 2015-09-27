@@ -129,16 +129,27 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
           }
 
         processingResult match {
-          case Success(_) => Pass
-          case Failure(e: UserNotFoundException) => Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
-          case Failure(e: MissingAuthTokenException) => Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
-          case Failure(e: IdentityCommunicationException) => Reject(HttpServletResponse.SC_BAD_GATEWAY, Some(e.getMessage))
+          case Success(_) =>
+            logger.trace("Response is valid")
+            Pass
+          case Failure(e: UserNotFoundException) =>
+            logger.trace(s"User not found: ${e.message}")
+            Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
+          case Failure(e: MissingAuthTokenException) =>
+            logger.trace(s"Unauthorized: ${e.message}")
+            Reject(HttpServletResponse.SC_UNAUTHORIZED, Some(e.getMessage))
+          case Failure(e: IdentityCommunicationException) =>
+            logger.trace(s"Bad gateway: ${e.message}")
+            Reject(HttpServletResponse.SC_BAD_GATEWAY, Some(e.getMessage))
           case Failure(e: OverLimitException) =>
+            logger.trace(s"Rate limited: ${e.message}")
             response.addHeader(HttpHeaders.RETRY_AFTER, e.retryAfter)
             Reject(HttpServletResponse.SC_SERVICE_UNAVAILABLE, Some(e.getMessage))
           //case Failure(e) if e.getCause.isInstanceOf[AkkaServiceClientException] && e.getCause.getCause.isInstanceOf[TimeoutException] =>
           //  Reject(HttpServletResponse.SC_GATEWAY_TIMEOUT, Some(s"Call timed out: ${e.getMessage}"))
-          case Failure(e) => Reject(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, Some(e.getMessage))
+          case Failure(e) =>
+            logger.trace(s"Something else: ${e.getMessage}")
+            Reject(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, Some(e.getMessage))
         }
       }
 
@@ -221,10 +232,12 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
       //let's see if we have an impersonation token in cache
       Option(datastore.get(s"${ImpersonationHandler.IMPERSONATION_KEY_PREFIX}$userName").asInstanceOf[ImpersonationHandler.ImpersonationToken]) match {
         case Some(cachedImpersonationToken) =>
+          logger.trace(s"Retrieved cached impersonation token: ${cachedImpersonationToken.token}")
           updateTokenHeader(cachedImpersonationToken)
           Success(cachedImpersonationToken)
         case None =>
           //get some data here
+          logger.trace(s"Token not cached")
           val impersonationTtl = config.getAuthenticationServer.getImpersonationTtl
           getAdminToken(false) flatMap { validatingToken =>
             requestHandler.getImpersonationToken(userName, impersonationTtl, validatingToken) recoverWith {

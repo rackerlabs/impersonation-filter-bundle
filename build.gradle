@@ -148,7 +148,7 @@ project(':impersonation-filter-tests'){
     }
 
     dependencies {
-        testCompile 'org.openrepose:core-lib:7.1.5.1'
+        testCompile("org.openrepose:core-lib:${this.properties['reposeVersion']}")
         testCompile 'org.apache.commons:commons-lang3:3.3.2'
         testCompile "org.codehaus.groovy:groovy:2.4.4"
         testCompile("junit:junit:4.12")
@@ -160,17 +160,17 @@ project(':impersonation-filter-tests'){
         testCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
         testCompile("org.rackspace:deproxy:0.21")
         provided 'org.openrepose:http-delegation:4.0.0'
-        runtime("org.openrepose:valve:7.1.5.1@jar")
-        runtime "org.openrepose:filter-bundle:7.1.5.1@ear"
-        runtime "org.openrepose:extensions-filter-bundle:7.1.5.1@ear"
+        runtime("org.openrepose:valve:${this.properties['reposeVersion']}@jar")
+        runtime "org.openrepose:filter-bundle:${this.properties['reposeVersion']}@ear"
+        runtime "org.openrepose:extensions-filter-bundle:${this.properties['reposeVersion']}@ear"
     }
 
     task initConfig(type: Copy) {
         from('src/test/resources') {
             include '**/*.properties'
             filter(ReplaceTokens, tokens: [
-                    "repose.version": '7.1.5.1',
-                    "repose.valve.jar": 'valve-7.1.5.1.jar',
+                    "repose.version": this.properties['reposeVersion'],
+                    "repose.valve.jar": "valve-" +this.properties['reposeVersion'] + ".jar",
                     "repose.container": "valve",
                     "build.dir": buildDir.absolutePath,
                     "repose.home": buildDir.absolutePath + "/repose_home",
@@ -227,9 +227,9 @@ project(':impersonation-filter') {
 
     dependencies {
         compile "org.scala-lang:scala-library:2.10.4"
-        compile 'org.openrepose:core-lib:7.1.5.1'
+        compile "org.openrepose:core-lib:${this.properties['reposeVersion']}"
         testCompile 'org.apache.commons:commons-lang3:3.3.2'
-        compile 'org.openrepose:utilities:7.1.5.1'
+        compile "org.openrepose:utilities:${this.properties['reposeVersion']}"
         testCompile 'org.scalatest:scalatest_2.10:2.2.5'
         testCompile 'org.mockito:mockito-all:1.9.5'
         testCompile 'junit:junit:4.12'
