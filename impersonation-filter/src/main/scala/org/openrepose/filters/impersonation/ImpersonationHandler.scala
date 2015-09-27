@@ -104,7 +104,6 @@ class ImpersonationHandler(
           serviceClientResponse.getStatus match {
             case statusCode if statusCode >= 200 && statusCode < 300 =>
               val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
-              logger.trace(s"Response from identity is ${jsonResponse}")
               try {
                 val json = Json.parse(jsonResponse)
                 //Have to convert it to a vector, because List isn't serializeable in 2.10

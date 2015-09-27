@@ -91,24 +91,12 @@ def filterBundleProject(String projectName, List<String> deps) {
                 logger.warn("trying to get the project " + proj)
                 deploy project(proj)
 
-                //project(proj).configurations.runtime.files.each { file ->
-                //    println file.name
-                //}
-                //project(proj).configurations.provided.files.each { file ->
-                //    println file.name
-                //}
                 earlib project(proj).configurations.runtime
                 earlib project(proj).configurations.provided
                 earlib project(proj).configurations.compile
                 earlib 'org.openrepose:http-delegation:4.0.0'
 
-                configurations.earlib.each { println it }
-
             }
-        }
-
-        task debug << {
-            configurations.earlib.each { println it }
         }
 
         publishing {
