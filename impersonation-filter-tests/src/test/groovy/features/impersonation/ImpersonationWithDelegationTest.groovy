@@ -11,7 +11,7 @@ import spock.lang.Unroll
 /**
  * Created by dimi5963 on 8/11/15.
  */
-class ImpersonationTest  extends ReposeValveTest {
+class ImpersonationWithDelegationTest extends ReposeValveTest {
     static Endpoint identityEndpoint
 
     def static MockIdentityService fakeIdentityService
@@ -26,7 +26,7 @@ class ImpersonationTest  extends ReposeValveTest {
 
         def params = properties.defaultTemplateParams
         repose.configurationProvider.applyConfigs("common", params)
-        repose.configurationProvider.applyConfigs("features/impersonation", params)
+        repose.configurationProvider.applyConfigs("features/impersonation/delegable", params)
         repose.start()
         repose.waitForNon500FromUrl(reposeEndpoint)
     }
@@ -74,15 +74,15 @@ class ImpersonationTest  extends ReposeValveTest {
         mc.orphanedHandlings[0].response.code == adminResponseCode.toString()
         mc.orphanedHandlings[0].response.message == responseMessage
         mc.receivedResponse.code == responseCode
-        mc.receivedResponse.message == "Server Error"
+        mc.receivedResponse.message == clientResponseMessage
 
         where:
 
-        reqTenant | adminResponseCode | adminIdentityResponseBody                      | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage
-        100       | 500               | ""                                             | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Internal Server Error"
-        101       | 500               | null                                           | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Internal Server Error"
-        102       | 404               | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Not Found"
-        103       | 401               | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Unauthorized"
+        reqTenant | adminResponseCode | adminIdentityResponseBody                      | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage         | clientResponseMessage
+        100       | 500               | ""                                             | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Internal Server Error" | "X-User-Name header not found"
+        101       | 500               | null                                           | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Internal Server Error" | "X-User-Name header not found"
+        102       | 404               | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Not Found"             | "X-User-Name header not found"
+        103       | 401               | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Unauthorized"          | "X-User-Name header not found"
         //102       | 200               | fakeIdentityService.identitySuccessXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Internal Server Error"
     }
 
@@ -118,17 +118,19 @@ class ImpersonationTest  extends ReposeValveTest {
 
         where:
 
-        reqTenant | validateResponseCode | validateIdentityResponseBody                   | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage | orphanedHandlings
-        200       | 500                  | ""                                             | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Server Error"  | 2 //first time needs to admin auth
-        201       | 500                  | null                                           | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Server Error"  | 1
-        202       | 404                  | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Unauthorized"  | 1
-        203       | 401                  | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Server Error"  | 2 //401 means unauthed
+        reqTenant | validateResponseCode | validateIdentityResponseBody                   | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage                 | orphanedHandlings
+        200       | 500                  | ""                                             | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "X-User-Name header not found"  | 2 //first time needs to admin auth
+        201       | 500                  | null                                           | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "X-User-Name header not found"  | 1
+        202       | 404                  | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "X-User-Name header not found"  | 1
+        203       | 401                  | fakeIdentityService.identityFailureXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "X-User-Name header not found"  | 2 //401 means unauthed
         //102       | 200               | fakeIdentityService.identitySuccessXmlTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Internal Server Error"
     }
+
 
     @Unroll("Impersonation scenarios - request: #requestMethod #requestURI -d #requestBody will return #responseCode with #responseMessage")
     def "When running with impersonation requests"() {
         given: "set up identity response"
+        def impersonatedToken = UUID.randomUUID().toString()
         fakeIdentityService.with {
             client_tenant = reqTenant
             client_userid = reqTenant
@@ -166,12 +168,11 @@ class ImpersonationTest  extends ReposeValveTest {
 
         where:
 
-        reqTenant | validateResponseCode | validateIdentityResponseBody                               | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage                                              | orphanedHandlings | impersonatedToken
-        300       | 500                  | ""                                                         | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "502"        | "Identity Service not available to get impersonation token"  | 4                 | UUID.randomUUID().toString() //first time needs to admin auth
-        301       | 500                  | null                                                       | "GET"         | "/"        | ""          | ['x-auth-token': '234'] | "502"        | "Identity Service not available to get impersonation token"  | 3                 | UUID.randomUUID().toString()
-        302       | 404                  | fakeIdentityService.impersonateTokenJsonFailedAuthTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '345'] | "401"        | "Unable to find username in Identity."                       | 3                 | UUID.randomUUID().toString()
-        303       | 401                  | fakeIdentityService.impersonateTokenJsonFailedAuthTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '456'] | "500"        | "Unable to authenticate your admin user"                     | 4                 | UUID.randomUUID().toString() //needs to auth admin again
-        304       | 200                  | ""                                                         | "GET"         | "/"        | ""          | ['x-auth-token': '567'] | "200"        | "OK"                                                         | 3                 | "this-will-be-cached"
-        304       | 200                  | ""                                                         | "GET"         | "/"        | ""          | ['x-auth-token': '567'] | "200"        | "OK"                                                         | 0                 | "this-will-be-cached" //everything is cached
+        reqTenant | validateResponseCode | validateIdentityResponseBody                               | requestMethod | requestURI | requestBody | headers                 | responseCode | responseMessage                                              | orphanedHandlings
+        300       | 500                  | ""                                                         | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "502"        | "Identity Service not available to get impersonation token"  | 4 //first time needs to admin auth
+        301       | 500                  | null                                                       | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "502"        | "Identity Service not available to get impersonation token"  | 1
+        302       | 404                  | fakeIdentityService.impersonateTokenJsonFailedAuthTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "401"        | "Unable to find username in Identity."                       | 1
+        303       | 401                  | fakeIdentityService.impersonateTokenJsonFailedAuthTemplate | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "500"        | "Unable to authenticate your admin user"                     | 2 //401 means unauthed
+        304       | 200                  | ""                                                         | "GET"         | "/"        | ""          | ['x-auth-token': '123'] | "200"        | "OK"                                                         | 1
     }
 }

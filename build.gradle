@@ -86,9 +86,7 @@ def filterBundleProject(String projectName, List<String> deps) {
         }
 
         dependencies {
-            logger.warn("we are in filter budnle project")
             deps.each { proj ->
-                logger.warn("trying to get the project " + proj)
                 deploy project(proj)
 
                 earlib project(proj).configurations.runtime
@@ -137,8 +135,8 @@ project(':impersonation-filter-tests'){
 
     dependencies {
         testCompile("org.openrepose:core-lib:${this.properties['reposeVersion']}")
-        testCompile 'org.apache.commons:commons-lang3:3.3.2'
-        testCompile "org.codehaus.groovy:groovy:2.4.4"
+        testCompile("org.apache.commons:commons-lang3:3.3.2")
+        testCompile("org.codehaus.groovy:groovy:2.4.4")
         testCompile("junit:junit:4.12")
         testCompile("org.apache.httpcomponents:httpclient:4.5.1")
         testCompile("org.spockframework:spock-core:$spockVersion")
@@ -147,7 +145,6 @@ project(':impersonation-filter-tests'){
         testCompile("org.apache.logging.log4j:log4j-core:2.3")
         testCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
         testCompile("org.rackspace:deproxy:0.21")
-        provided 'org.openrepose:http-delegation:4.0.0'
         runtime("org.openrepose:valve:${this.properties['reposeVersion']}@jar")
         runtime "org.openrepose:filter-bundle:${this.properties['reposeVersion']}@ear"
         runtime "org.openrepose:extensions-filter-bundle:${this.properties['reposeVersion']}@ear"
@@ -158,7 +155,7 @@ project(':impersonation-filter-tests'){
             include '**/*.properties'
             filter(ReplaceTokens, tokens: [
                     "repose.version": this.properties['reposeVersion'],
-                    "repose.valve.jar": "valve-" +this.properties['reposeVersion'] + ".jar",
+                    "repose.valve.jar": "valve-" + this.properties['reposeVersion'] + ".jar",
                     "repose.container": "valve",
                     "build.dir": buildDir.absolutePath,
                     "repose.home": buildDir.absolutePath + "/repose_home",
