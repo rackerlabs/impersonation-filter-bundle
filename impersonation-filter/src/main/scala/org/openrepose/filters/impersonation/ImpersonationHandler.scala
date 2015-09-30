@@ -52,7 +52,7 @@ class ImpersonationHandler(
 
     akkaResponse match {
       case Success(serviceClientResponse) =>
-        if(serviceClientResponse != null) {
+        if(Option(serviceClientResponse).isDefined) {
           serviceClientResponse.getStatus match {
             case statusCode if statusCode >= 200 && statusCode < 300 =>
               val jsonResponse = Source.fromInputStream(serviceClientResponse.getData).getLines().mkString("")
@@ -99,7 +99,7 @@ class ImpersonationHandler(
 
     akkaResponse match {
       case Success(serviceClientResponse) =>
-        if(serviceClientResponse != null) {
+        if(Option(serviceClientResponse).isDefined) {
           logger.trace(s"Response code from identity is ${serviceClientResponse.getStatus}")
           serviceClientResponse.getStatus match {
             case statusCode if statusCode >= 200 && statusCode < 300 =>
@@ -148,7 +148,7 @@ object ImpersonationHandler {
   }
 
   def buildRetryValue(response: ServiceClientResponse) = {
-    if(response.getHeaders != null){
+    if(Option(response.getHeaders).isDefined){
       response.getHeaders.find(header => HttpHeaders.RETRY_AFTER.equalsIgnoreCase(header.getName)) match {
         case Some(retryValue) => retryValue.getValue
         case _ =>

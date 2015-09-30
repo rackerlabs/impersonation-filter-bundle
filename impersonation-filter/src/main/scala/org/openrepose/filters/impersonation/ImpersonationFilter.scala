@@ -145,8 +145,6 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
             logger.trace(s"Rate limited: ${e.message}")
             response.addHeader(HttpHeaders.RETRY_AFTER, e.retryAfter)
             Reject(HttpServletResponse.SC_SERVICE_UNAVAILABLE, Some(e.getMessage))
-          //case Failure(e) if e.getCause.isInstanceOf[AkkaServiceClientException] && e.getCause.getCause.isInstanceOf[TimeoutException] =>
-          //  Reject(HttpServletResponse.SC_GATEWAY_TIMEOUT, Some(s"Call timed out: ${e.getMessage}"))
           case Failure(e) =>
             logger.trace(s"Something else: ${e.getMessage}")
             Reject(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, Some(e.getMessage))
@@ -186,15 +184,16 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
     }
 
     def updateTokenHeader(impersonationToken: ImpersonationToken): Unit = {
-      if(request.getHeader(CommonHttpHeader.AUTH_TOKEN.toString) != null)
+      if(Option(request.getHeader(CommonHttpHeader.AUTH_TOKEN.toString)).isDefined) {
         request.replaceHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
-      else
+      } else {
         request.addHeader(CommonHttpHeader.AUTH_TOKEN.toString, impersonationToken.token)
-
-      if(request.getHeader(OpenStackServiceHeader.X_EXPIRATION.toString) != null)
+      }
+      if(Option(request.getHeader(OpenStackServiceHeader.X_EXPIRATION.toString)).isDefined) {
         request.replaceHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
-      else
+      } else {
         request.addHeader(OpenStackServiceHeader.X_EXPIRATION.toString, impersonationToken.expirationDate)
+      }
     }
 
 
@@ -299,10 +298,8 @@ class ImpersonationFilter @Inject()(configurationService: ConfigurationService,
     }
 
     (tokenTtl, configuredTtl) match {
-      case (Some(tttl), None) => None
-      case (Some(tttl), Some(cttl)) => Some(Math.min(tttl, cttl))
-      case (None, Some(cttl)) => None
-      case (None, None) => None
+      case (Some(tttl), Some(cttl)) => Some(math.min(tttl, cttl))
+      case _ => None
     }
   }
 

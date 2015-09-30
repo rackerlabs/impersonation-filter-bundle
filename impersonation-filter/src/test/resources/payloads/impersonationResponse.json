@@ -1,0 +1,11 @@
+{
+  "access":{
+    "token":{
+        "id":"token_replacement",
+        "expires":"expiryTime_replacement",
+        "RAX-AUTH:authenticatedBy":[
+            "PASSWORD"
+        ]
+    }
+  }
+}

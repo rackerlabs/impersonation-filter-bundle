@@ -1,4 +1,4 @@
 include 'impersonation-filter',
-        'impersonation-filter-bundle-impersonation-filter-bundle'
+        'filter-bundle'
 include 'impersonation-filter-tests'
 
