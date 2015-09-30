@@ -5,9 +5,6 @@ buildscript {
         jcenter()
         maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
         maven { url 'https://repo.spring.io/plugins-release' }
-        maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
-        maven { url "https://plugins.gradle.org/m2/" }
-        maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
     }
     dependencies {
         classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
@@ -20,22 +17,13 @@ buildscript {
 }
 
 configure(allprojects) {
-    apply plugin: 'propdeps'
-    apply plugin: 'propdeps-maven'
     apply plugin: 'propdeps-idea'
     apply plugin: 'scala'
-}
-
-configurations.all {
-    transitive = false
 }
 
 allprojects {
     apply plugin: 'idea'
 
-    tasks.withType(ScalaCompile) {
-        scalaCompileOptions.useAnt = false
-    }
     sourceCompatibility = '1.7'
     targetCompatibility = '1.7'
 }
@@ -43,7 +31,7 @@ allprojects {
 subprojects {
     apply plugin: 'scala'
     group = 'org.openrepose.filters.impersonation'
-    version = '3.0'
+    version = '1.0'
 
     repositories {
         mavenLocal()
@@ -51,19 +39,6 @@ subprojects {
         maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
         maven { url "http://repo.typesafe.com/typesafe/maven-releases" }
         maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
-    }
-
-    dependencies {
-    }
-
-    tasks.withType(ScalaCompile) {
-        scalaCompileOptions.useAnt = false
-    }
-
-    task 'create-dirs' << {
-        sourceSets.all { set ->
-            set.allSource.srcDirs.each { it.mkdirs() }
-        }
     }
 }
 
@@ -89,25 +64,11 @@ def filterBundleProject(String projectName, List<String> deps) {
             deps.each { proj ->
                 deploy project(proj)
 
-                earlib project(proj).configurations.runtime
-                earlib project(proj).configurations.provided
-                earlib project(proj).configurations.compile
+                //earlib project(proj).configurations.runtime
+                //earlib project(proj).configurations.provided
+                //earlib project(proj).configurations.compile
                 earlib 'org.openrepose:http-delegation:4.0.0'
 
-            }
-        }
-
-        publishing {
-            publications {
-                maven(MavenPublication) {
-                    artifact ear
-                }
-            }
-            repositories {
-                maven {
-                    name "releases.maven.research.rackspace.com"
-                    url "http://maven.research.rackspacecloud.com/content/repositories/releases"
-                }
             }
         }
     }
@@ -119,7 +80,6 @@ project(':impersonation-filter-tests'){
 
     apply plugin: 'groovy'
     apply plugin: 'org.unbroken-dome.test-sets'
-    //apply plugin: 'ear'
 
     def spockVersion = "1.0-groovy-2.4"
 
