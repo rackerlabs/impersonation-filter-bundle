@@ -1,0 +1,222 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        jcenter()
+        maven { url "http://repository.jboss.org/nexus/content/groups/public/" }
+        maven { url 'https://repo.spring.io/plugins-release' }
+    }
+    dependencies {
+        classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
+        classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7'
+        classpath "com.github.jacobono:gradle-jaxb-plugin:1.3.5"
+        classpath "org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:1.0.2"
+
+    }
+
+}
+
+configure(allprojects) {
+    apply plugin: 'propdeps-idea'
+    apply plugin: 'scala'
+}
+
+allprojects {
+    apply plugin: 'idea'
+
+    sourceCompatibility = '1.7'
+    targetCompatibility = '1.7'
+}
+
+subprojects {
+    apply plugin: 'scala'
+    group = 'org.openrepose.filters.impersonation'
+    version = '1.0'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url "http://repo.typesafe.com/typesafe/maven-releases" }
+        maven { url "https://maven.research.rackspacecloud.com/content/groups/aggregate" }
+    }
+}
+
+
+/**
+ * Because an Ear project is always the same, this is a function to clean up our build script
+ * @param projectName The name of the ear project
+ * @param deps a list of dependencies that will go in this ear
+ * @return
+ */
+def filterBundleProject(String projectName, List<String> deps) {
+    project(projectName) {
+        apply plugin: 'ear'
+        apply plugin: 'maven'
+        apply plugin: 'maven-publish'
+        apply plugin: 'maven-publish-auth'
+
+        configurations {
+            earlib
+        }
+
+        dependencies {
+            deps.each { proj ->
+                deploy project(proj)
+
+                earlib 'org.openrepose:http-delegation:4.0.0'
+
+            }
+        }
+    }
+
+}
+import org.apache.tools.ant.filters.ReplaceTokens
+
+project(':impersonation-filter-tests'){
+
+    apply plugin: 'groovy'
+    apply plugin: 'org.unbroken-dome.test-sets'
+
+    def spockVersion = "1.0-groovy-2.4"
+
+    repositories {
+        flatDir {
+            name 'localRepository'
+        }
+        maven { url "http://maven.research.rackspacecloud.com/content/repositories/releases" }
+        localRepository {
+            dirs 'lib'
+        }
+    }
+
+    dependencies {
+        testCompile("org.openrepose:core-lib:$reposeVersion")
+        testCompile("org.apache.commons:commons-lang3:3.3.2")
+        testCompile("org.codehaus.groovy:groovy:2.4.4")
+        testCompile("junit:junit:4.12")
+        testCompile("org.apache.httpcomponents:httpclient:4.5.1")
+        testCompile("org.spockframework:spock-core:$spockVersion")
+        testCompile("org.spockframework:spock-spring:$spockVersion")
+        testCompile("org.springframework:spring-test:4.1.4.RELEASE")
+        testCompile("org.apache.logging.log4j:log4j-core:2.3")
+        testCompile("org.linkedin:org.linkedin.util-groovy:1.8.0")
+        testCompile("org.rackspace:deproxy:0.21")
+        runtime("org.openrepose:valve:$reposeVersion@jar")
+        runtime "org.openrepose:filter-bundle:$reposeVersion@ear"
+        runtime "org.openrepose:extensions-filter-bundle:$reposeVersion@ear"
+    }
+
+    task initConfig(type: Copy) {
+        from('src/test/resources') {
+            include '**/*.properties'
+            filter(ReplaceTokens, tokens: [
+                    "repose.version": reposeVersion,
+                    "repose.valve.jar": "valve-" + reposeVersion + ".jar",
+                    "repose.container": "valve",
+                    "build.dir": buildDir.absolutePath,
+                    "repose.home": buildDir.absolutePath + "/repose_home",
+                    "target.hostname": "localhost",
+                    "repose.config.templates": buildDir.absolutePath + "/configs"
+            ])
+        }
+        into 'build/resources/test'
+
+        outputs.upToDateWhen { false }
+    }
+
+    task copyConfigs(type: Copy) {
+        logger.warn(rootDir.absolutePath)
+        from('src/test/configs')
+        into 'build/configs'
+    }
+
+    task copyCustomBundle(type: Copy) {
+        print project(":filter-bundle").artifacts
+        from("${rootDir.absolutePath}/filter-bundle/build/libs") {
+            include '*.ear'
+        }
+        into 'build/repose_home/artifacts'
+    }
+
+    task copyRuntimeLibs(type: Copy) {
+        into "build/libs"
+        from configurations.runtime
+
+        outputs.upToDateWhen { false }
+    }
+
+    task copyReposeBundles(type: Copy) {
+        into 'build/repose_home/artifacts'
+        from("build/libs") {
+            include '*.ear'
+            include 'valve*.jar'
+        }
+    }
+
+    test.dependsOn(copyConfigs, initConfig, copyCustomBundle, copyRuntimeLibs, copyReposeBundles)
+    copyConfigs.mustRunAfter initConfig
+    copyCustomBundle.mustRunAfter copyConfigs
+    copyRuntimeLibs.mustRunAfter testClasses
+    copyReposeBundles.mustRunAfter copyRuntimeLibs
+    initConfig.mustRunAfter processTestResources
+
+
+}
+
+project(':impersonation-filter') {
+    apply plugin: "com.github.jacobono.jaxb"
+    apply plugin: 'jacoco'
+
+    dependencies {
+        compile "org.scala-lang:scala-library:2.10.4"
+        compile "org.openrepose:core-lib:$reposeVersion"
+        testCompile 'org.apache.commons:commons-lang3:3.3.2'
+        compile "org.openrepose:utilities:$reposeVersion"
+        testCompile 'org.scalatest:scalatest_2.10:2.2.5'
+        testCompile 'org.mockito:mockito-all:1.9.5'
+        testCompile 'junit:junit:4.12'
+        testCompile('com.mockrunner:mockrunner-servlet:1.0.0') {
+            exclude group: 'xerces', module: 'xercesImpl'
+            exclude group: 'commons-logging', module: 'commons-logging'
+            exclude group: 'org.apache.tomcat', module: 'servlet-api'
+        }
+
+        provided 'org.openrepose:http-delegation:4.0.0'
+        compile 'javax.ws.rs:javax.ws.rs-api:2.0.1'
+        provided 'javax:javaee-web-api:6.0'
+        compile 'javax.servlet:javax.servlet-api:3.1.0'
+        provided 'javax:javaee-api:6.0'
+        jaxb 'com.sun.xml.bind:jaxb-xjc:2.1.8'
+        jaxb "org.jvnet.jaxb2_commons:jaxb2-basics-ant:0.6.5"
+        jaxb "org.jvnet.jaxb2_commons:jaxb2-basics:0.6.4"
+        jaxb "org.jvnet.jaxb2_commons:jaxb2-basics-annotate:0.6.4"
+    }
+
+    jaxb {
+        xsdDir = "${project.name}/src/main/resources/META-INF/schema/config"
+        xjc {
+            taskClassname = "org.jvnet.jaxb2_commons.xjc.XJC2Task"
+            generatePackage    = "org.openrepose.filters.config"
+            args               = ["-Xinheritance", "-Xannotate"]
+        }
+    }
+
+    tasks.withType(ScalaCompile) {
+        scalaCompileOptions.useAnt = false
+    }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled = true
+            html.enabled = true
+        }
+    }
+
+    check.dependsOn jacocoTestReport
+
+    sourceSets {
+        main {  compileClasspath += configurations.provided }
+    }
+}
+
+filterBundleProject(':filter-bundle', [':impersonation-filter'])

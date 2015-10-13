@@ -1,6 +1,10 @@
 Repose Impersonation filter
 =================
 
+[![Build Status](https://travis-ci.org/rackerlabs/impersonation-filter-bundle.svg)](https://travis-ci.org/rackerlabs/impersonation-filter-bundle)
+[![codecov.io](http://codecov.io/github/rackerlabs/impersonation-filter-bundle/coverage.svg?branch=impersonate)](http://codecov.io/github/rackerlabs/impersonation-filter-bundle?branch=impersonate)
+
+
 This repo hosts Impersonation filter that can be used to take a user's token, impersonate it and forward an impersonated token to the origin service.
 
 Steps
@@ -9,7 +13,7 @@ Steps
 ### Happy flow:
 
 1. user sends request to magnum api
-2. repose intercepts the request and attempts to authenticate token
+2. repose intercepts the request and attempts to authenticate token (done outside of this filter)
 3. if successful, repose attempts to retrieve impersonation token based on user token from cache.
 4. if not exists or expiry date is < now, get impersonation token from Identity (http://docs-internal.rackspace.com/auth/api/v2.0/auth-admin-devguide/content/POST_impersonateUser_v2.0_RAX-AUTH_impersonation-tokens_Impersonation_Calls.html)
 5. if successful, repose caches impersonation token withe key being user token {'usertoken': '{token: impersonatedtoken, expiry: date}'}

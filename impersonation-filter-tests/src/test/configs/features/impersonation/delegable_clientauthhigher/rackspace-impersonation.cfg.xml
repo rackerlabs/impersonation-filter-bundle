@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+    <delegating quality="0.4"/>
+    <authentication-server
+            username="username"
+            password="password"
+            href="http://localhost:${identityPort}"
+            />
+</rackspace-impersonation>

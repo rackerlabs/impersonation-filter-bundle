@@ -1,0 +1,4 @@
+include 'impersonation-filter',
+        'filter-bundle'
+include 'impersonation-filter-tests'
+
