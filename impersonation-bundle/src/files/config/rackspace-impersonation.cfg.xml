@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rackspace-impersonation xmlns="http://docs.openrepose.org/repose/impersonation/v1.0">
+    <authentication-server
+            username="admin-username"
+            password="admin-password"
+            href="HREF_IDENTITY"
+            />
+</rackspace-impersonation>
