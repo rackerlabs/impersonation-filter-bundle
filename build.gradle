@@ -132,8 +132,7 @@ project(':impersonation-filter-tests'){
     }
 
     task copyCustomBundle(type: Copy) {
-        print project(":filter-bundle").artifacts
-        from("${rootDir.absolutePath}/filter-bundle/build/libs") {
+        from("${rootDir.absolutePath}/impersonation-bundle/build/libs") {
             include '*.ear'
         }
         into 'build/repose_home/artifacts'
@@ -220,7 +219,7 @@ project(':impersonation-filter') {
     }
 }
 
-project(':filter-bundle'){
+project(':impersonation-bundle'){
     apply plugin: 'nebula.os-package'
 
     build.dependsOn buildDeb
@@ -240,12 +239,15 @@ project(':filter-bundle'){
         postUninstall file('src/files/postUninstall.sh')
 
         //Grab the bits out of the boot repackage excluding the extra versioned name
-        from("${buildDir}/libs/")
+        from("${buildDir}/libs/"){
+            fileMode 0555
+            into '/usr/share/repose/filters'
+        }
 
-        into '/usr/lib/repose/share/filters'
 
         from("src/files/config") {
             fileType CONFIG | NOREPLACE
+            fileMode 0640
             into "/etc/repose"
         }
     }
@@ -257,4 +259,4 @@ project(':filter-bundle'){
 
 }
 
-filterBundleProject(':filter-bundle', [':impersonation-filter'])
+filterBundleProject(':impersonation-bundle', [':impersonation-filter'])
